@@ -1,0 +1,393 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Personal Health Assistant</title>
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;700&display=swap" rel="stylesheet">
+    <script src="https://cdn.tailwindcss.com"></script>
+    <style>
+        body {
+            font-family: 'Inter', sans-serif;
+            background-color: #f3f4f6;
+        }
+        .container {
+            max-width: 800px;
+        }
+        .content-section {
+            display: none;
+        }
+        .content-section.active {
+            display: block;
+        }
+    </style>
+</head>
+<body class="bg-gray-100 flex items-center justify-center min-h-screen p-4">
+
+    <div class="container bg-white rounded-xl shadow-lg p-8 space-y-8">
+        
+        <!-- Navigation Bar -->
+        <nav class="flex justify-center space-x-4 mb-8">
+            <button data-target="home-page" class="nav-button text-gray-700 px-4 py-2 rounded-lg hover:bg-gray-200 transition-colors duration-200">Home</button>
+            <button data-target="symptom-checker" class="nav-button text-gray-700 px-4 py-2 rounded-lg hover:bg-gray-200 transition-colors duration-200">Symptom & Report Analyzer</button>
+            <button data-target="health-tips" class="nav-button text-gray-700 px-4 py-2 rounded-lg hover:bg-gray-200 transition-colors duration-200">Health Tips</button>
+        </nav>
+
+        <!-- Home Page Section -->
+        <div id="home-page" class="content-section active text-center space-y-4">
+            <h1 class="text-3xl font-bold text-gray-800">Welcome to Your Personal Health Assistant</h1>
+            <p class="text-gray-500">Use the navigation above to analyze symptoms, read a medical report, or get some health tips.</p>
+            <strong class="text-red-500 block mt-4">Disclaimer: This is for informational purposes only. Always consult a healthcare professional.</strong>
+        </div>
+
+        <!-- Symptom Checker Section -->
+        <div id="symptom-checker" class="content-section space-y-8">
+            <div class="text-center space-y-2">
+                <h1 class="text-3xl font-bold text-gray-800">Symptom & Report Analyzer</h1>
+                <p class="text-gray-500">Enter a description of your symptoms or upload a medical report below.</p>
+            </div>
+            
+            <div class="space-y-4">
+                <div class="space-y-2">
+                    <label class="block text-sm font-medium text-gray-700">Enter Symptoms (Optional)</label>
+                    <textarea id="textInput" class="w-full h-32 p-4 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 transition-all" placeholder="e.g., fever, cough, fatigue, body aches"></textarea>
+                </div>
+                <div class="space-y-2">
+                    <label for="reportInput" class="block text-sm font-medium text-gray-700">Upload a Medical Report (Image)</label>
+                    <input type="file" id="reportInput" accept="image/*" class="w-full p-2 border border-gray-300 rounded-lg">
+                </div>
+                <button id="analyzeBtn" class="w-full bg-blue-600 text-white font-semibold py-3 rounded-lg hover:bg-blue-700 transition-colors duration-200">
+                    Analyze
+                </button>
+            </div>
+
+            <!-- Output Section for Combined Analysis -->
+            <div id="results" class="bg-gray-50 rounded-lg p-6 space-y-4">
+                <div id="loadingIndicator" class="hidden text-center text-blue-500">
+                    <p>Analyzing...</p>
+                </div>
+                
+                <div id="analysisResults" class="hidden">
+                    <h2 class="text-xl font-semibold text-gray-700">Analysis Results</h2>
+                    <div id="diseaseInfo" class="mt-4">
+                        <h3 class="font-semibold text-gray-700">Disease Description</h3>
+                        <div id="diseaseText" class="mt-2 text-gray-600 leading-relaxed"></div>
+                    </div>
+                    <div id="medicineInfo" class="mt-4">
+                        <h3 class="font-semibold text-gray-700">Recommended Medicines</h3>
+                        <div id="medicineList" class="mt-2 text-gray-600 leading-relaxed"></div>
+                    </div>
+                </div>
+
+                <div id="errorInfo" class="hidden text-red-500 text-center">
+                    <p>An error occurred. Please try again.</p>
+                </div>
+            </div>
+        </div>
+
+        <!-- Health Tips Section -->
+        <div id="health-tips" class="content-section space-y-4">
+            <div class="text-center space-y-2">
+                <h1 class="text-3xl font-bold text-gray-800">Daily Health Tips</h1>
+                <p class="text-gray-500">Click below to get a new tip for a healthier life.</p>
+            </div>
+            <div id="tip-card" class="bg-white rounded-lg shadow-md p-6 border-l-4 border-l-green-500">
+                <p id="tip-text" class="text-gray-700 italic">Click the button below to get your first health tip!</p>
+            </div>
+            <button id="getTipBtn" class="w-full bg-green-600 text-white font-semibold py-3 rounded-lg hover:bg-green-700 transition-colors duration-200">
+                Get New Tip
+            </button>
+        </div>
+
+    </div>
+
+    <script>
+        // Use an async function to handle the API call for diagnosis
+        async function getPrognosis(prompt, imageData) {
+            const diseaseTextDiv = document.getElementById('diseaseText');
+            const medicineListDiv = document.getElementById('medicineList');
+            const diseaseInfoDiv = document.getElementById('diseaseInfo');
+            const medicineInfoDiv = document.getElementById('medicineInfo');
+            const errorInfoDiv = document.getElementById('errorInfo');
+            
+            // Clear previous results
+            diseaseTextDiv.innerHTML = '';
+            medicineListDiv.innerHTML = '';
+            document.getElementById('analysisResults').classList.add('hidden');
+            errorInfoDiv.classList.add('hidden');
+
+            try {
+                let payload;
+                if (imageData) {
+                    // Prompt for image analysis
+                    payload = {
+                        contents: [
+                            {
+                                role: "user",
+                                parts: [
+                                    { text: `Analyze this medical report image. Identify the disease and any explicit prescriptions. For each medicine, specify its form and a list of well-known brand names. If no medicines are explicitly mentioned in the report, then based on the identified disease, provide a list of common, over-the-counter medicines. Adhere strictly to the provided JSON schema.\n\n` +
+                                            `{ "disease_description": "text", "medicines": [{ "name": "medicine name", "form": "form (e.g., tablet, syrup)", "brands": ["brand 1", "brand 2"] }] }`
+                                    },
+                                    {
+                                        inlineData: {
+                                            mimeType: "image/jpeg",
+                                            data: imageData.split(',')[1]
+                                        }
+                                    }
+                                ]
+                            }
+                        ],
+                        generationConfig: {
+                            responseMimeType: "application/json",
+                            responseSchema: {
+                                type: "OBJECT",
+                                properties: {
+                                    "disease_description": { "type": "STRING" },
+                                    "medicines": {
+                                        "type": "ARRAY",
+                                        "items": {
+                                            "type": "OBJECT",
+                                            "properties": {
+                                                "name": { "type": "STRING" },
+                                                "form": { "type": "STRING" },
+                                                "brands": {
+                                                    "type": "ARRAY",
+                                                    "items": { "type": "STRING" }
+                                                }
+                                            },
+                                            "propertyOrdering": ["name", "form", "brands"]
+                                        }
+                                    }
+                                },
+                                "propertyOrdering": ["disease_description", "medicines"]
+                            }
+                        }
+                    };
+                } else {
+                    // Prompt for text-based symptom analysis
+                    payload = {
+                        contents: [{
+                            role: "user",
+                            parts: [{ text: `Based on the following symptoms, provide a brief description of the most likely disease and a list of common, over-the-counter medicines. For each medicine, include its form (e.g., tablet, syrup) and a list of well-known tablet brand names. Use this JSON schema:\n\n` +
+                                            `{ "disease_description": "text", "medicines": [{ "name": "medicine name", "form": "form (e.g., tablet, syrup)", "brands": ["brand 1", "brand 2"] }] }\n\n` +
+                                            `Symptoms: ${prompt}`
+                            }]
+                        }],
+                        generationConfig: {
+                            responseMimeType: "application/json",
+                            responseSchema: {
+                                type: "OBJECT",
+                                properties: {
+                                    "disease_description": { "type": "STRING" },
+                                    "medicines": {
+                                        "type": "ARRAY",
+                                        "items": {
+                                            "type": "OBJECT",
+                                            "properties": {
+                                                "name": { "type": "STRING" },
+                                                "form": { "type": "STRING" },
+                                                "brands": {
+                                                    "type": "ARRAY",
+                                                    "items": { "type": "STRING" }
+                                                }
+                                            },
+                                            "propertyOrdering": ["name", "form", "brands"]
+                                        }
+                                    }
+                                },
+                                "propertyOrdering": ["disease_description", "medicines"]
+                            }
+                        }
+                    };
+                }
+
+                const apiKey = "AIzaSyANEvIbgCdjoFiApq9PdA8UXfKnvy4wupc"; 
+                const apiUrl = `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash-preview-05-20:generateContent?key=${apiKey}`;
+
+                let response;
+                let retries = 0;
+                const maxRetries = 5;
+                let delay = 1000;
+
+                while (retries < maxRetries) {
+                    try {
+                        response = await fetch(apiUrl, {
+                            method: 'POST',
+                            headers: { 'Content-Type': 'application/json' },
+                            body: JSON.stringify(payload)
+                        });
+
+                        if (response.status !== 429) {
+                            break;
+                        }
+
+                        retries++;
+                        await new Promise(res => setTimeout(res, delay));
+                        delay *= 2;
+                    } catch (e) {
+                        retries++;
+                        await new Promise(res => setTimeout(res, delay));
+                        delay *= 2;
+                    }
+                }
+
+                if (!response.ok) {
+                    throw new Error(`API call failed with status: ${response.status}`);
+                }
+
+                const result = await response.json();
+                const jsonContent = result?.candidates?.[0]?.content?.parts?.[0]?.text;
+
+                if (jsonContent) {
+                    const parsedData = JSON.parse(jsonContent);
+                    const diseaseDescription = parsedData.disease_description || 'No description found.';
+                    const medicines = parsedData.medicines || [];
+
+                    diseaseTextDiv.innerHTML = diseaseDescription;
+                    diseaseInfoDiv.classList.remove('hidden');
+
+                    medicineListDiv.innerHTML = '';
+                    
+                    if (medicines.length > 0) {
+                        medicines.forEach(medicine => {
+                            const medicineItem = document.createElement('div');
+                            medicineItem.className = 'mb-4';
+                            
+                            const nameEl = document.createElement('p');
+                            nameEl.className = 'font-semibold text-gray-800';
+                            nameEl.textContent = medicine.name;
+                            
+                            const formEl = document.createElement('p');
+                            formEl.className = 'text-sm text-gray-500 italic';
+                            formEl.textContent = `Form: ${medicine.form}`;
+
+                            const brandsEl = document.createElement('p');
+                            brandsEl.className = 'text-gray-600 mt-1';
+                            brandsEl.textContent = `Common Brands: ${medicine.brands.join(', ')}`;
+
+                            medicineItem.appendChild(nameEl);
+                            medicineItem.appendChild(formEl);
+                            medicineItem.appendChild(brandsEl);
+                            medicineListDiv.appendChild(medicineItem);
+                        });
+                        medicineInfoDiv.classList.remove('hidden');
+                    } else {
+                        // Display a clear message if no medicines are found
+                        medicineListDiv.textContent = 'No specific medicines found.';
+                        medicineInfoDiv.classList.remove('hidden');
+                    }
+                } else {
+                    throw new Error("Invalid response from API.");
+                }
+
+            } catch (error) {
+                console.error('An error occurred:', error);
+                errorInfoDiv.classList.remove('hidden');
+            }
+        }
+        
+        // Use an async function to get health tips
+        async function getHealthTip() {
+            const tipTextDiv = document.getElementById('tip-text');
+            tipTextDiv.textContent = 'Getting a new tip...';
+
+            const payload = {
+                contents: [{
+                    role: "user",
+                    parts: [{ text: `Generate a single, concise, and helpful general health tip. Focus on diet, exercise, or mental well-being. The tip should be a single sentence or two, without any introductory phrases like "Here's a tip" or "Health Tip:".` }]
+                }]
+            };
+
+            const apiKey = "AIzaSyANEvIbgCdjoFiApq9PdA8UXfKnvy4wupc";
+            const apiUrl = `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash-preview-05-20:generateContent?key=${apiKey}`;
+
+            let response;
+            let retries = 0;
+            const maxRetries = 5;
+            let delay = 1000;
+
+            while (retries < maxRetries) {
+                try {
+                    response = await fetch(apiUrl, {
+                        method: 'POST',
+                        headers: { 'Content-Type': 'application/json' },
+                        body: JSON.stringify(payload)
+                    });
+
+                    if (response.status !== 429) {
+                        break;
+                    }
+
+                    retries++;
+                    await new Promise(res => setTimeout(res, delay));
+                    delay *= 2;
+                } catch (e) {
+                    retries++;
+                    await new Promise(res => setTimeout(res, delay));
+                    delay *= 2;
+                }
+            }
+            
+            if (!response.ok) {
+                tipTextDiv.textContent = 'Could not retrieve a health tip. Please try again later.';
+                return;
+            }
+
+            const result = await response.json();
+            const tip = result?.candidates?.[0]?.content?.parts?.[0]?.text || 'No tip found.';
+            tipTextDiv.textContent = tip;
+        }
+
+        // Function to handle page navigation
+        function navigateTo(targetId) {
+            document.querySelectorAll('.content-section').forEach(section => {
+                section.classList.remove('active');
+            });
+            document.getElementById(targetId).classList.add('active');
+        }
+
+        // Event listener for navigation buttons
+        document.querySelectorAll('.nav-button').forEach(button => {
+            button.addEventListener('click', (e) => {
+                navigateTo(e.target.dataset.target);
+            });
+        });
+
+        // Event listener for the unified analyze button
+        document.getElementById('analyzeBtn').addEventListener('click', async () => {
+            const textInput = document.getElementById('textInput').value.trim();
+            const fileInput = document.getElementById('reportInput');
+            const file = fileInput.files[0];
+            const loadingIndicator = document.getElementById('loadingIndicator');
+            const errorInfoDiv = document.getElementById('errorInfo');
+
+            document.getElementById('analysisResults').classList.add('hidden');
+            errorInfoDiv.classList.add('hidden');
+            loadingIndicator.classList.remove('hidden');
+
+            if (file) {
+                const reader = new FileReader();
+                reader.onload = async function(e) {
+                    await getPrognosis('', e.target.result);
+                    document.getElementById('analysisResults').classList.remove('hidden');
+                    loadingIndicator.classList.add('hidden');
+                };
+                reader.readAsDataURL(file);
+            } else if (textInput) {
+                await getPrognosis(textInput, null);
+                document.getElementById('analysisResults').classList.remove('hidden');
+                loadingIndicator.classList.add('hidden');
+            } else {
+                errorInfoDiv.innerHTML = "Please enter symptoms or upload a report to get a diagnosis.";
+                errorInfoDiv.classList.remove('hidden');
+                loadingIndicator.classList.add('hidden');
+            }
+        });
+        
+        // Event listener for the Health Tips button
+        document.getElementById('getTipBtn').addEventListener('click', getHealthTip);
+    </script>
+</body>
+</html>
